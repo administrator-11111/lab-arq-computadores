@@ -18,7 +18,7 @@ Colección reutilizable de código en ensamblador **8086** compatible con **EMU8
 | Declarar, inicializar, recorrer, leer o modificar un vector | [`02_Vectores/`](02_Vectores/) |
 | Saber si un número es par, impar, primo, perfecto, cuadrado perfecto o narcisista | [`03_Clasificacion_Numeros/`](03_Clasificacion_Numeros/) |
 | Calcular suma, promedio, mínimo, máximo o conteos sobre un vector | [`04_Analisis_Vectores/`](04_Analisis_Vectores/) |
-| Ordenar un vector (Bubble, Insertion, Selection, Merge, Quick) o elegir asc/desc por variable | [`05_Ordenamiento/`](05_Ordenamiento/) |
+| Ordenar un vector de 8 bits (`DB`) o 16 bits (`DW`) (Bubble, Insertion, Selection, Merge, Quick) o elegir asc/desc por variable | [`05_Ordenamiento/`](05_Ordenamiento/) |
 | Extraer/contar/sumar dígitos, raíz entera, divisores, potencia, factorial o año bisiesto | [`06_Algoritmos_Matematicos/`](06_Algoritmos_Matematicos/) |
 | Validar un rango por teclado, leer dígitos `0..9` o contar frecuencias | [`07_Procesamiento_Teclado/`](07_Procesamiento_Teclado/) |
 | Calcular longitud o comparar cadenas (iguales, posición distinta, numéricas, palabras) | [`08_Comparacion_Cadenas/`](08_Comparacion_Cadenas/) |
@@ -103,16 +103,16 @@ Estadísticas y conteos sobre vectores `DW` (`SI` = offset, `CX` = cantidad).
 
 ### `05_Ordenamiento/` (6 archivos)
 
-Los cinco algoritmos clásicos de ordenamiento sobre vectores `DW` sin signo, todos con selección de sentido mediante `SENTIDO DB` (`0` = ascendente, `1` = descendente).
+Los cinco algoritmos clásicos de ordenamiento (y el ordenamiento controlado por variable) con **dos versiones reutilizables en cada archivo**: **16 bits (`DW`, 0..65535)** y **8 bits (`DB`, 0..255)** sin signo, todos con selección de sentido mediante `SENTIDO DB` (`0` = ascendente, `1` = descendente).
 
 | Archivo | Tipo | Funcionalidad | Dependencias | Uso típico |
 |---|---|---|---|---|
-| [`bubble_sort.asm`](05_Ordenamiento/bubble_sort.asm) | Algoritmo + demo | `BUBBLE_SORT` con bandera de parada anticipada | Variable `SENTIDO DB` (demo: macros `01`, `MOSTRAR_VECTOR`) | Ordenamiento sencillo y educativo |
-| [`insertion_sort.asm`](05_Ordenamiento/insertion_sort.asm) | Algoritmo + demo | `INSERTION_SORT` usando base `BX` y desplazamientos `SI`/`DI` | Variable `SENTIDO DB` (demo: macros `01`, `MOSTRAR_VECTOR`) | Vectores pequeños o casi ordenados |
-| [`selection_sort.asm`](05_Ordenamiento/selection_sort.asm) | Algoritmo + demo | `SELECTION_SORT` con mínimo/máximo y a lo sumo `N-1` intercambios | Variable `SENTIDO DB` (demo: macros `01`, `MOSTRAR_VECTOR`) | Minimizar intercambios en memoria |
-| [`merge_sort.asm`](05_Ordenamiento/merge_sort.asm) | Algoritmo + demo | `MERGE_SORT` recursivo (`MS_DIVIDIR`, `MS_MEZCLAR`) con pila 256 palabras y vector auxiliar `MS_AUX` | `SENTIDO DB`, `MS_AUX`, `MS_BASE`, `MS_LIM_I`, `MS_LIM_J` | Ordenamiento divide y vencerás estable |
-| [`quick_sort.asm`](05_Ordenamiento/quick_sort.asm) | Algoritmo + demo | `QUICK_SORT` recursivo con partición de Lomuto y guardas sin signo (`QS_ORDENAR`, `QS_PARTICION`) | `SENTIDO DB`, `QS_BASE`, `QS_PTR_DER`, pila 256 palabras | Ordenamiento in-place rápido |
-| [`ordenar_segun_variable.asm`](05_Ordenamiento/ordenar_segun_variable.asm) | Algoritmo + demo | `ORDENAR_SEGUN_SENTIDO` (versión de referencia controlada por `SENTIDO DB`) con demo interactiva | `SENTIDO DB`, macros `01`, `MOSTRAR_VECTOR` | Ejercicios que piden ascendente/descendente según variable |
+| [`bubble_sort.asm`](05_Ordenamiento/bubble_sort.asm) | Algoritmo + demo | `BUBBLE_SORT` (16 bits `DW`) y `BUBBLE_SORT_8` (8 bits `DB`) con bandera de parada anticipada | Variable `SENTIDO DB` (demo: macros `01`, `MOSTRAR_VECTOR` / `MOSTRAR_VECTOR_8`) | Ordenamiento sencillo y educativo |
+| [`insertion_sort.asm`](05_Ordenamiento/insertion_sort.asm) | Algoritmo + demo | `INSERTION_SORT` (16 bits `DW`) e `INSERTION_SORT_8` (8 bits `DB`) usando base `BX` y desplazamientos `SI`/`DI` | Variable `SENTIDO DB` (demo: macros `01`, `MOSTRAR_VECTOR` / `MOSTRAR_VECTOR_8`) | Vectores pequeños o casi ordenados |
+| [`selection_sort.asm`](05_Ordenamiento/selection_sort.asm) | Algoritmo + demo | `SELECTION_SORT` (16 bits `DW`) y `SELECTION_SORT_8` (8 bits `DB`) con a lo sumo `N-1` intercambios | Variable `SENTIDO DB` (demo: macros `01`, `MOSTRAR_VECTOR` / `MOSTRAR_VECTOR_8`) | Minimizar intercambios en memoria |
+| [`merge_sort.asm`](05_Ordenamiento/merge_sort.asm) | Algoritmo + demo | `MERGE_SORT` (16 bits `DW`) y `MERGE_SORT_8` (8 bits `DB`) recursivos con pila 256 palabras y vector auxiliar (`MS_AUX` / `MS_AUX_8`) | `SENTIDO DB`, `MS_AUX` o `MS_AUX_8`, `MS_BASE`, `MS_LIM_I`, `MS_LIM_J` | Ordenamiento divide y vencerás estable |
+| [`quick_sort.asm`](05_Ordenamiento/quick_sort.asm) | Algoritmo + demo | `QUICK_SORT` (16 bits `DW`) y `QUICK_SORT_8` (8 bits `DB`) recursivos con partición de Lomuto y guardas sin signo | `SENTIDO DB`, `QS_BASE`, `QS_PTR_DER`, pila 256 palabras | Ordenamiento in-place rápido |
+| [`ordenar_segun_variable.asm`](05_Ordenamiento/ordenar_segun_variable.asm) | Algoritmo + demo | `ORDENAR_SEGUN_SENTIDO` (16 bits `DW`) y `ORDENAR_SEGUN_SENTIDO_8` (8 bits `DB`) con demo interactiva por teclado | `SENTIDO DB`, macros `01`, `MOSTRAR_VECTOR` / `MOSTRAR_VECTOR_8` | Ejercicios que piden ascendente/descendente según variable |
 
 ---
 

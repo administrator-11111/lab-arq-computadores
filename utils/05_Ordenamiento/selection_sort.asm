@@ -1,38 +1,43 @@
 ;==============================================================================
 ; ARCHIVO       : selection_sort.asm
 ; TIPO          : ALGORITMO (+ programa de demostracion)
-; DESCRIPCION   : Ordenamiento por seleccion (Selection Sort) para vectores de
-;                 palabras (DW) sin signo (0..65535), controlado por la
-;                 variable SENTIDO (0 = ascendente, 1 = descendente).
+; DESCRIPCION   : Ordenamiento por seleccion (Selection Sort) en dos versiones:
+;                 arreglos de 16 bits (DW, 0..65535) y arreglos de 8 bits
+;                 (DB, 0..255), sin signo, controlado por la variable SENTIDO
+;                 (0 = ascendente, 1 = descendente).
 ; FUNCIONAMIENTO: Para cada posicion i (0..N-2) recorre el resto del vector
 ;                 buscando la direccion del elemento "mejor" (el minimo si
 ;                 SENTIDO=0 o el maximo si SENTIDO=1). Al terminar la busqueda,
 ;                 si el mejor elemento no estaba ya en i, lo intercambia con
-;                 v[i]. Asi realiza como maximo N-1 intercambios en total.
+;                 v[i]. Realiza como maximo N-1 intercambios en total.
 ;
 ;                 Traza de ejemplo (ascendente, vector: 5, 2, 8, 1):
-;                   i=0: minimo en [5,2,8,1] es 1 (pos 3) -> swap -> [1, 2, 8, 5]
+;                   i=0: minimo en [5,2,8,1] es 1 (pos 3) -> swap -> [1,2,8,5]
 ;                   i=1: minimo en [2,8,5]   es 2 (pos 1) -> sin swap
-;                   i=2: minimo en [8,5]     es 5 (pos 3) -> swap -> [1, 2, 5, 8]
+;                   i=2: minimo en [8,5]     es 5 (pos 3) -> swap -> [1,2,5,8]
 ;
-;                 Particularidad 8086: se usan punteros directos en memoria:
-;                 SI apunta a v[i], BX guarda el puntero al mejor candidato y
-;                 DI recorre v[i+1..N-1] avanzando de 2 en 2 bytes.
-; REGISTROS     : Entrada  : SI = offset del vector (DW), CX = cantidad
+;                 Diferencia 8 bits vs 16 bits en 8086:
+;                 - 16 bits (DW): compara AX con DX, avanza punteros ADD reg, 2.
+;                 -  8 bits (DB): compara AL con DL, avanza punteros INC reg.
+; REGISTROS     : Entrada  : SI = offset del vector (DW o DB), CX = cantidad
 ;                 Salida   : vector ordenado en memoria (in-place)
 ;                 Modifica : ninguno (conserva AX, BX, CX, DX, SI, DI)
 ; VARIABLES     : SENTIDO DB 0  (0 = ascendente, 1 = descendente) en DATOS
-; DEPENDENCIAS  : Ninguna para SELECTION_SORT. La demo usa macros de E/S de
-;                 utils/01_Macros_Entrada_Salida/macros_entrada_salida.asm
-;                 y MOSTRAR_VECTOR de procedimientos canonicos.
+; DEPENDENCIAS  : Ninguna para SELECTION_SORT / SELECTION_SORT_8. La demo usa
+;                 macros de E/S y MOSTRAR_VECTOR / MOSTRAR_VECTOR_8.
 ; COMO INTEGRAR : 1. Declarar SENTIDO DB 0 en DATOS.
-;                 2. Copiar el bloque SELECTION_SORT dentro de CODIGO (despues
-;                    de la salida a DOS).
-;                 3. Cargar SENTIDO, SI = offset, CX = cantidad y llamar a
-;                    CALL SELECTION_SORT.
-; EJEMPLO       : Vector original     : 64 25 12 22 11 25 90 5
-;                 Ordenado ascendente : 5 11 12 22 25 25 64 90
-;                 Ordenado descendente: 90 64 25 25 22 12 11 5
+;                 2. Copiar SELECTION_SORT (DW) o SELECTION_SORT_8 (DB) en
+;                    CODIGO despues de la salida a DOS.
+;                 3. Cargar SENTIDO, SI = offset, CX = cantidad y ejecutar
+;                    CALL SELECTION_SORT o CALL SELECTION_SORT_8.
+; EJEMPLO       : --- 16 bits (DW) ---
+;                 Original    : 640 25 1200 22 11 25 9000 5
+;                 Ascendente  : 5 11 22 25 25 640 1200 9000
+;                 Descendente : 9000 1200 640 25 25 22 11 5
+;                 --- 8 bits (DB) ---
+;                 Original    : 64 25 12 22 11 25 190 5
+;                 Ascendente  : 5 11 12 22 25 25 64 190
+;                 Descendente : 190 64 25 25 22 12 11 5
 ;==============================================================================
 
 ;//// macros
@@ -102,12 +107,16 @@ PILA SEGMENT STACK                          ; segmento de pila
 PILA ENDS                                   ; fin del segmento de pila
 
 DATOS SEGMENT                               ; segmento de datos
-    MSG_TITULO DB '=== DEMO: SELECTION SORT (SELECCION) ===$' ; titulo
+    MSG_TITULO DB '=== DEMO: SELECTION SORT (16 BITS Y 8 BITS) ===$' ; tit
+    MSG_16     DB '--- Arreglo de 16 bits (DW, 0..65535) ---$' ; subtitulo 16
+    MSG_8      DB '--- Arreglo de 8 bits (DB, 0..255) ---$'    ; subtitulo 8
     MSG_ORIG   DB 'Vector original     : $' ; etiqueta para vector inicial
     MSG_ASC    DB 'Ordenado ascendente : $' ; etiqueta para orden ascendente
     MSG_DESC   DB 'Ordenado descendente: $' ; etiqueta para orden descendente
-    VECTOR     DW 64, 25, 12, 22, 11, 25, 90, 5 ; vector de prueba con repetido
-    N_ELEM     DW 8                         ; cantidad de elementos del vector
+    VECTOR_16  DW 640, 25, 1200, 22, 11, 25, 9000, 5 ; arreglo 16 bits (DW)
+    N_16       DW 8                         ; cantidad de elementos DW
+    VECTOR_8   DB 64, 25, 12, 22, 11, 25, 190, 5 ; arreglo 8 bits (DB)
+    N_8        DW 8                         ; cantidad de elementos DB
     SENTIDO    DB 0                         ; 0 = ascendente, 1 = descendente
 DATOS ENDS                                  ; fin del segmento de datos
 
@@ -120,46 +129,60 @@ INICIO:                                     ; punto de entrada del programa
     IMPRIMIR_CADENA MSG_TITULO              ; muestra el titulo
     SALTO_LINEA                             ; nueva linea
 
-    IMPRIMIR_CADENA MSG_ORIG                ; muestra etiqueta de original
-    MOV SI, OFFSET VECTOR                   ; SI = inicio del vector
-    MOV CX, N_ELEM                          ; CX = cantidad de elementos
-    CALL MOSTRAR_VECTOR                     ; muestra el vector original
+    ;--- Demostracion 16 bits (DW) ---
+    IMPRIMIR_CADENA MSG_16                  ; subtitulo 16 bits
+    SALTO_LINEA                             ; nueva linea
+    IMPRIMIR_CADENA MSG_ORIG                ; etiqueta original
+    MOV SI, OFFSET VECTOR_16                ; SI = arreglo DW
+    MOV CX, N_16                            ; CX = cantidad
+    CALL MOSTRAR_VECTOR                     ; muestra original 16 bits
     SALTO_LINEA                             ; nueva linea
 
-    MOV SENTIDO, 0                          ; elige orden ascendente
-    MOV SI, OFFSET VECTOR                   ; SI = inicio del vector
-    MOV CX, N_ELEM                          ; CX = cantidad de elementos
-    CALL SELECTION_SORT                     ; ordena ascendentemente
-
-    IMPRIMIR_CADENA MSG_ASC                 ; muestra etiqueta ascendente
-    MOV SI, OFFSET VECTOR                   ; SI = inicio del vector
-    MOV CX, N_ELEM                          ; CX = cantidad de elementos
-    CALL MOSTRAR_VECTOR                     ; muestra el vector ordenado asc
+    MOV SENTIDO, 0                          ; orden ascendente
+    CALL SELECTION_SORT                     ; ordena DW ascendente
+    IMPRIMIR_CADENA MSG_ASC                 ; etiqueta ascendente
+    CALL MOSTRAR_VECTOR                     ; muestra resultado ascendente
     SALTO_LINEA                             ; nueva linea
 
-    MOV SENTIDO, 1                          ; elige orden descendente
-    MOV SI, OFFSET VECTOR                   ; SI = inicio del vector
-    MOV CX, N_ELEM                          ; CX = cantidad de elementos
-    CALL SELECTION_SORT                     ; ordena descendentemente
+    MOV SENTIDO, 1                          ; orden descendente
+    CALL SELECTION_SORT                     ; ordena DW descendente
+    IMPRIMIR_CADENA MSG_DESC                ; etiqueta descendente
+    CALL MOSTRAR_VECTOR                     ; muestra resultado descendente
+    SALTO_LINEA                             ; nueva linea
 
-    IMPRIMIR_CADENA MSG_DESC                ; muestra etiqueta descendente
-    MOV SI, OFFSET VECTOR                   ; SI = inicio del vector
-    MOV CX, N_ELEM                          ; CX = cantidad de elementos
-    CALL MOSTRAR_VECTOR                     ; muestra el vector ordenado desc
+    ;--- Demostracion 8 bits (DB) ---
+    IMPRIMIR_CADENA MSG_8                   ; subtitulo 8 bits
+    SALTO_LINEA                             ; nueva linea
+    IMPRIMIR_CADENA MSG_ORIG                ; etiqueta original
+    MOV SI, OFFSET VECTOR_8                 ; SI = arreglo DB
+    MOV CX, N_8                             ; CX = cantidad
+    CALL MOSTRAR_VECTOR_8                   ; muestra original 8 bits
+    SALTO_LINEA                             ; nueva linea
+
+    MOV SENTIDO, 0                          ; orden ascendente
+    CALL SELECTION_SORT_8                   ; ordena DB ascendente
+    IMPRIMIR_CADENA MSG_ASC                 ; etiqueta ascendente
+    CALL MOSTRAR_VECTOR_8                   ; muestra resultado ascendente
+    SALTO_LINEA                             ; nueva linea
+
+    MOV SENTIDO, 1                          ; orden descendente
+    CALL SELECTION_SORT_8                   ; ordena DB descendente
+    IMPRIMIR_CADENA MSG_DESC                ; etiqueta descendente
+    CALL MOSTRAR_VECTOR_8                   ; muestra resultado descendente
     SALTO_LINEA                             ; nueva linea
 
     MOV AX, 4C00h                           ; servicio 4Ch: terminar programa
     INT 21h                                 ; vuelve a DOS con codigo 0
 
-;====== INICIO BLOQUE REUTILIZABLE: SELECTION_SORT ======
+;====== INICIO BLOQUE REUTILIZABLE: SELECTION_SORT (16 BITS / DW) ======
 ;------------------------------------------------------------------------------
 ; PROCEDIMIENTO SELECTION_SORT
-;   Entrada : SI = offset del vector (DW), CX = cantidad de elementos
+;   Entrada : SI = offset del vector de 16 bits (DW), CX = cantidad
 ;             Variable global SENTIDO DB (0 = ascendente, 1 = descendente)
 ;   Salida  : vector ordenado en el mismo espacio de memoria
 ;   Modifica: nada (conserva AX, BX, CX, DX, SI, DI)
 ;------------------------------------------------------------------------------
-SELECTION_SORT PROC                         ; inicio del procedimiento
+SELECTION_SORT PROC                         ; inicio del procedimiento 16 bits
     PUSH AX                                 ; guarda AX (candidato v[j])
     PUSH BX                                 ; guarda BX (puntero al mejor)
     PUSH CX                                 ; guarda CX (contadores)
@@ -174,12 +197,12 @@ SELECTION_SORT PROC                         ; inicio del procedimiento
 SEL_EXTERNO:                                ; fija el elemento en [SI]
     MOV BX, SI                              ; supone que el mejor es v[i]
     MOV DI, SI                              ; DI inicia en v[i]
-    ADD DI, 2                               ; DI apunta a v[i+1]
-    PUSH CX                                 ; guarda contador externo (y j)
+    ADD DI, 2                               ; DI apunta a v[i+1] (2 bytes)
+    PUSH CX                                 ; guarda contador externo
 
 SEL_BUSCAR:                                 ; busca el mejor en v[i+1..N-1]
-    MOV AX, [DI]                            ; AX = candidato v[j]
-    MOV DX, [BX]                            ; DX = mejor actual
+    MOV AX, [DI]                            ; AX = candidato v[j] (16 bits)
+    MOV DX, [BX]                            ; DX = mejor actual (16 bits)
     CMP SENTIDO, 0                          ; orden ascendente?
     JNE SEL_DESC                            ; no: buscar el mayor
     CMP AX, DX                              ; ascendente: v[j] >= mejor?
@@ -217,15 +240,80 @@ SEL_FIN:                                    ; salida comun del procedimiento
     POP BX                                  ; restaura BX
     POP AX                                  ; restaura AX
     RET                                     ; vuelve al llamador
-SELECTION_SORT ENDP                         ; fin del procedimiento
-;====== FIN BLOQUE REUTILIZABLE: SELECTION_SORT ======
+SELECTION_SORT ENDP                         ; fin del procedimiento 16 bits
+;====== FIN BLOQUE REUTILIZABLE: SELECTION_SORT (16 BITS / DW) ======
+
+;====== INICIO BLOQUE REUTILIZABLE: SELECTION_SORT_8 (8 BITS / DB) ======
+;------------------------------------------------------------------------------
+; PROCEDIMIENTO SELECTION_SORT_8
+;   Entrada : SI = offset del vector de 8 bits (DB), CX = cantidad
+;             Variable global SENTIDO DB (0 = ascendente, 1 = descendente)
+;   Salida  : vector ordenado en el mismo espacio de memoria
+;   Modifica: nada (conserva AX, BX, CX, DX, SI, DI)
+;------------------------------------------------------------------------------
+SELECTION_SORT_8 PROC                       ; inicio del procedimiento 8 bits
+    PUSH AX                                 ; guarda AX (AL = candidato v[j])
+    PUSH BX                                 ; guarda BX (puntero al mejor)
+    PUSH CX                                 ; guarda CX (contadores)
+    PUSH DX                                 ; guarda DX (DL = valor del mejor)
+    PUSH SI                                 ; guarda SI (puntero a v[i])
+    PUSH DI                                 ; guarda DI (puntero a v[j])
+
+    CMP CX, 1                               ; tiene 0 o 1 elemento?
+    JBE SEL8_FIN                            ; si: ya esta ordenado, termina
+    DEC CX                                  ; N - 1 posiciones por fijar
+
+SEL8_EXTERNO:                               ; fija el byte en [SI]
+    MOV BX, SI                              ; supone que el mejor es v[i]
+    MOV DI, SI                              ; DI inicia en v[i]
+    INC DI                                  ; DI apunta a v[i+1] (1 byte)
+    PUSH CX                                 ; guarda contador externo
+
+SEL8_BUSCAR:                                ; busca el mejor en v[i+1..N-1]
+    MOV AL, [DI]                            ; AL = candidato v[j] (8 bits)
+    MOV DL, [BX]                            ; DL = mejor actual (8 bits)
+    CMP SENTIDO, 0                          ; orden ascendente?
+    JNE SEL8_DESC                           ; no: buscar el mayor
+    CMP AL, DL                              ; ascendente: v[j] >= mejor?
+    JAE SEL8_SIGUIENTE                      ; si: no mejora al minimo
+    JMP SEL8_ACTUALIZAR                     ; no: v[j] es el nuevo minimo
+
+SEL8_DESC:                                  ; comparacion para descendente
+    CMP AL, DL                              ; descendente: v[j] <= mejor?
+    JBE SEL8_SIGUIENTE                      ; si: no mejora al maximo
+
+SEL8_ACTUALIZAR:                            ; guarda puntero al nuevo mejor
+    MOV BX, DI                              ; BX = direccion del nuevo mejor
+
+SEL8_SIGUIENTE:                             ; avanza al siguiente candidato
+    INC DI                                  ; siguiente byte (1 byte)
+    LOOP SEL8_BUSCAR                        ; repite CX veces
+
+    POP CX                                  ; recupera contador externo
+    CMP BX, SI                              ; el mejor ya estaba en v[i]?
+    JE SEL8_AVANZAR                         ; si: no hace falta intercambiar
+    MOV AL, [SI]                            ; AL = v[i]
+    MOV DL, [BX]                            ; DL = v[mejor]
+    MOV [SI], DL                            ; v[i] = v[mejor]
+    MOV [BX], AL                            ; v[mejor] = v[i] anterior
+
+SEL8_AVANZAR:                               ; avanza a la siguiente posicion
+    INC SI                                  ; siguiente byte (1 byte)
+    LOOP SEL8_EXTERNO                       ; repite para el resto del vector
+
+SEL8_FIN:                                   ; salida comun del procedimiento
+    POP DI                                  ; restaura DI
+    POP SI                                  ; restaura SI
+    POP DX                                  ; restaura DX
+    POP CX                                  ; restaura CX
+    POP BX                                  ; restaura BX
+    POP AX                                  ; restaura AX
+    RET                                     ; vuelve al llamador
+SELECTION_SORT_8 ENDP                       ; fin del procedimiento 8 bits
+;====== FIN BLOQUE REUTILIZABLE: SELECTION_SORT_8 (8 BITS / DB) ======
 
 ;------------------------------------------------------------------------------
-; PROCEDIMIENTO MOSTRAR_VECTOR
-;   Entrada : SI = offset del vector de palabras (DW), CX = cantidad (>0)
-;   Salida  : muestra los elementos separados por un espacio.
-;   Requiere: macros IMPRIMIR_NUMERO e IMPRIMIR_ESPACIO.
-;   Modifica: nada (conserva AX, CX, SI).
+; PROCEDIMIENTO MOSTRAR_VECTOR (16 bits / DW)
 ;------------------------------------------------------------------------------
 MOSTRAR_VECTOR PROC                         ; inicio del procedimiento
     PUSH AX                                 ; guarda AX
@@ -233,8 +321,8 @@ MOSTRAR_VECTOR PROC                         ; inicio del procedimiento
     PUSH SI                                 ; guarda SI
     CMP CX, 0                               ; vector vacio?
     JE MV_FIN                               ; si: no hay nada que mostrar
-MV_CICLO:                                   ; recorre el vector
-    MOV AX, [SI]                            ; AX = elemento actual
+MV_CICLO:                                   ; recorre el vector DW
+    MOV AX, [SI]                            ; AX = elemento actual (16 bits)
     IMPRIMIR_NUMERO AX                      ; lo muestra
     IMPRIMIR_ESPACIO                        ; separador
     ADD SI, 2                               ; siguiente elemento (2 bytes)
@@ -245,6 +333,29 @@ MV_FIN:                                     ; salida comun
     POP AX                                  ; restaura AX
     RET                                     ; vuelve al llamador
 MOSTRAR_VECTOR ENDP                         ; fin del procedimiento
+
+;------------------------------------------------------------------------------
+; PROCEDIMIENTO MOSTRAR_VECTOR_8 (8 bits / DB)
+;------------------------------------------------------------------------------
+MOSTRAR_VECTOR_8 PROC                       ; inicio del procedimiento
+    PUSH AX                                 ; guarda AX
+    PUSH CX                                 ; guarda CX
+    PUSH SI                                 ; guarda SI
+    CMP CX, 0                               ; vector vacio?
+    JE MV8_FIN                              ; si: no hay nada que mostrar
+MV8_CICLO:                                  ; recorre el vector DB
+    MOV AL, [SI]                            ; AL = elemento actual (8 bits)
+    MOV AH, 0                               ; extiende sin signo a 16 bits
+    IMPRIMIR_NUMERO AX                      ; lo muestra
+    IMPRIMIR_ESPACIO                        ; separador
+    INC SI                                  ; siguiente elemento (1 byte)
+    LOOP MV8_CICLO                          ; repite CX veces
+MV8_FIN:                                    ; salida comun
+    POP SI                                  ; restaura SI
+    POP CX                                  ; restaura CX
+    POP AX                                  ; restaura AX
+    RET                                     ; vuelve al llamador
+MOSTRAR_VECTOR_8 ENDP                       ; fin del procedimiento
 
 CODIGO ENDS                                 ; fin del segmento de codigo
 END INICIO                                  ; fin del archivo, entrada INICIO

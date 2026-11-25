@@ -1,48 +1,54 @@
 ;==============================================================================
 ; ARCHIVO       : merge_sort.asm
 ; TIPO          : ALGORITMO (+ programa de demostracion)
-; DESCRIPCION   : Ordenamiento por mezcla (Merge Sort) recursivo para vectores
-;                 de palabras (DW) sin signo (0..65535), controlado por la
-;                 variable SENTIDO (0 = ascendente, 1 = descendente).
+; DESCRIPCION   : Ordenamiento por mezcla (Merge Sort) recursivo en dos
+;                 versiones: arreglos de 16 bits (DW, 0..65535) y arreglos de
+;                 8 bits (DB, 0..255), sin signo, controlado por SENTIDO
+;                 (0 = ascendente, 1 = descendente).
 ; FUNCIONAMIENTO: Estrategia "divide y venceras":
 ;                 1) Si el subarreglo tiene 0 o 1 elemento (izq >= der), ya
 ;                    esta ordenado (caso base).
 ;                 2) Calcula medio = (izq + der) / 2 y ordena recursivamente
 ;                    la mitad izquierda [izq..medio] y la derecha
 ;                    [medio+1..der], guardando en la pila (PUSH/POP) los
-;                    limites de cada llamada recursiva.
+;                    limites de cada llamada.
 ;                 3) Mezcla ambas mitades ya ordenadas en un vector auxiliar
-;                    MS_AUX del mismo tamano maximo, comparando elemento a
-;                    elemento segun SENTIDO, y copia el resultado de vuelta al
-;                    vector original.
+;                    (MS_AUX para 16 bits o MS_AUX_8 para 8 bits) segun
+;                    SENTIDO, y copia el resultado de vuelta al arreglo.
 ;
 ;                 Traza de ejemplo (ascendente, vector: 5, 2, 8, 1):
 ;                   Divide  : [5,2] y [8,1] -> [5],[2] y [8],[1]
-;                   Mezcla 1: [5] + [2] -> [2,5]  ;  [8] + [1] -> [1,8]
-;                   Mezcla 2: [2,5] + [1,8] -> [1,2,5,8]
+;                   Mezcla 1: [5]+[2] -> [2,5]  ;  [8]+[1] -> [1,8]
+;                   Mezcla 2: [2,5]+[1,8] -> [1,2,5,8]
 ;
-;                 Uso de pila y memoria en 8086:
-;                 - Cada nivel recursivo apila 4 palabras (dir. retorno + AX +
-;                   BX + DX). Con 256 palabras en PILA se soportan vectores
-;                   muy grandes (profundidad log2(N) es muy pequena).
-;                 - Requiere MS_AUX en DATOS con capacidad >= N elementos DW.
-; REGISTROS     : Entrada  : SI = offset del vector (DW), CX = cantidad
+;                 Diferencia 8 bits vs 16 bits en 8086:
+;                 - 16 bits (DW): calcula direcciones con SHL reg, 1 (2*idx),
+;                   lee/escribe AX/CX, usa MS_AUX DW y avanza ADD reg, 2.
+;                 -  8 bits (DB): los indices son directamente desplazamientos
+;                   en bytes (sin SHL), lee/escribe AL/CL, usa MS_AUX_8 DB y
+;                   avanza INC reg.
+; REGISTROS     : Entrada  : SI = offset del vector (DW o DB), CX = cantidad
 ;                 Salida   : vector ordenado en memoria
 ;                 Modifica : ninguno (conserva AX, BX, CX, DX, SI, DI)
-; VARIABLES     : SENTIDO DB 0, MS_AUX DW 50 DUP(0), MS_BASE DW 0,
-;                 MS_LIM_I DW 0, MS_LIM_J DW 0 en DATOS
-; DEPENDENCIAS  : Ninguna para MERGE_SORT. La demo usa macros de E/S de
-;                 utils/01_Macros_Entrada_Salida/macros_entrada_salida.asm
-;                 y MOSTRAR_VECTOR de procedimientos canonicos.
-; COMO INTEGRAR : 1. Declarar SENTIDO, MS_AUX (tamano >= N), MS_BASE, MS_LIM_I
-;                    y MS_LIM_J en DATOS.
-;                 2. Copiar el bloque MERGE_SORT (incluye MS_DIVIDIR y
-;                    MS_MEZCLAR) en CODIGO despues de la salida a DOS.
-;                 3. Cargar SENTIDO, SI = offset, CX = cantidad y ejecutar
-;                    CALL MERGE_SORT.
-; EJEMPLO       : Vector original     : 38 27 43 3 9 82 10 27
-;                 Ordenado ascendente : 3 9 10 27 27 38 43 82
-;                 Ordenado descendente: 82 43 38 27 27 10 9 3
+; VARIABLES     : SENTIDO DB 0, MS_BASE DW 0, MS_LIM_I DW 0, MS_LIM_J DW 0,
+;                 MS_AUX DW 50 DUP(0) (16b) y/o MS_AUX_8 DB 50 DUP(0) (8b).
+; DEPENDENCIAS  : Ninguna para MERGE_SORT / MERGE_SORT_8. La demo usa macros
+;                 de E/S y MOSTRAR_VECTOR / MOSTRAR_VECTOR_8.
+; COMO INTEGRAR : 1. Declarar SENTIDO, MS_BASE, MS_LIM_I, MS_LIM_J y el vector
+;                    auxiliar correspondiente (MS_AUX DW o MS_AUX_8 DB) en
+;                    DATOS, mas pila suficiente (DW 256 DUP(0)).
+;                 2. Copiar el bloque MERGE_SORT (16b) o MERGE_SORT_8 (8b) en
+;                    CODIGO despues de la salida a DOS.
+;                 3. Cargar SENTIDO, SI = offset, CX = cantidad y llamar a
+;                    CALL MERGE_SORT o CALL MERGE_SORT_8.
+; EJEMPLO       : --- 16 bits (DW) ---
+;                 Original    : 3800 27 430 3 9 8200 10 27
+;                 Ascendente  : 3 9 10 27 27 430 3800 8200
+;                 Descendente : 8200 3800 430 27 27 10 9 3
+;                 --- 8 bits (DB) ---
+;                 Original    : 38 27 143 3 9 252 10 27
+;                 Ascendente  : 3 9 10 27 27 38 143 252
+;                 Descendente : 252 143 38 27 27 10 9 3
 ;==============================================================================
 
 ;//// macros
@@ -112,14 +118,19 @@ PILA SEGMENT STACK                          ; segmento de pila
 PILA ENDS                                   ; fin del segmento de pila
 
 DATOS SEGMENT                               ; segmento de datos
-    MSG_TITULO DB '=== DEMO: MERGE SORT (MEZCLA) ===$' ; titulo de la demo
+    MSG_TITULO DB '=== DEMO: MERGE SORT (16 BITS Y 8 BITS) ===$' ; titulo
+    MSG_16     DB '--- Arreglo de 16 bits (DW, 0..65535) ---$' ; subtitulo 16
+    MSG_8      DB '--- Arreglo de 8 bits (DB, 0..255) ---$'    ; subtitulo 8
     MSG_ORIG   DB 'Vector original     : $' ; etiqueta para vector inicial
     MSG_ASC    DB 'Ordenado ascendente : $' ; etiqueta para orden ascendente
     MSG_DESC   DB 'Ordenado descendente: $' ; etiqueta para orden descendente
-    VECTOR     DW 38, 27, 43, 3, 9, 82, 10, 27 ; vector de prueba con repetido
-    N_ELEM     DW 8                         ; cantidad de elementos del vector
+    VECTOR_16  DW 3800, 27, 430, 3, 9, 8200, 10, 27 ; arreglo 16 bits (DW)
+    N_16       DW 8                         ; cantidad de elementos DW
+    VECTOR_8   DB 38, 27, 143, 3, 9, 252, 10, 27 ; arreglo 8 bits (DB)
+    N_8        DW 8                         ; cantidad de elementos DB
     SENTIDO    DB 0                         ; 0 = ascendente, 1 = descendente
-    MS_AUX     DW 50 DUP(0)                 ; vector auxiliar para la mezcla
+    MS_AUX     DW 50 DUP(0)                 ; vector auxiliar 16 bits (DW)
+    MS_AUX_8   DB 50 DUP(0)                 ; vector auxiliar 8 bits (DB)
     MS_BASE    DW 0                         ; direccion base del vector activo
     MS_LIM_I   DW 0                         ; puntero limite de mitad izq
     MS_LIM_J   DW 0                         ; puntero limite de mitad der
@@ -134,46 +145,60 @@ INICIO:                                     ; punto de entrada del programa
     IMPRIMIR_CADENA MSG_TITULO              ; muestra el titulo
     SALTO_LINEA                             ; nueva linea
 
-    IMPRIMIR_CADENA MSG_ORIG                ; muestra etiqueta de original
-    MOV SI, OFFSET VECTOR                   ; SI = inicio del vector
-    MOV CX, N_ELEM                          ; CX = cantidad de elementos
-    CALL MOSTRAR_VECTOR                     ; muestra el vector original
+    ;--- Demostracion 16 bits (DW) ---
+    IMPRIMIR_CADENA MSG_16                  ; subtitulo 16 bits
+    SALTO_LINEA                             ; nueva linea
+    IMPRIMIR_CADENA MSG_ORIG                ; etiqueta original
+    MOV SI, OFFSET VECTOR_16                ; SI = arreglo DW
+    MOV CX, N_16                            ; CX = cantidad
+    CALL MOSTRAR_VECTOR                     ; muestra original 16 bits
     SALTO_LINEA                             ; nueva linea
 
-    MOV SENTIDO, 0                          ; elige orden ascendente
-    MOV SI, OFFSET VECTOR                   ; SI = inicio del vector
-    MOV CX, N_ELEM                          ; CX = cantidad de elementos
-    CALL MERGE_SORT                         ; ordena ascendentemente
-
-    IMPRIMIR_CADENA MSG_ASC                 ; muestra etiqueta ascendente
-    MOV SI, OFFSET VECTOR                   ; SI = inicio del vector
-    MOV CX, N_ELEM                          ; CX = cantidad de elementos
-    CALL MOSTRAR_VECTOR                     ; muestra el vector ordenado asc
+    MOV SENTIDO, 0                          ; orden ascendente
+    CALL MERGE_SORT                         ; ordena DW ascendente
+    IMPRIMIR_CADENA MSG_ASC                 ; etiqueta ascendente
+    CALL MOSTRAR_VECTOR                     ; muestra resultado ascendente
     SALTO_LINEA                             ; nueva linea
 
-    MOV SENTIDO, 1                          ; elige orden descendente
-    MOV SI, OFFSET VECTOR                   ; SI = inicio del vector
-    MOV CX, N_ELEM                          ; CX = cantidad de elementos
-    CALL MERGE_SORT                         ; ordena descendentemente
+    MOV SENTIDO, 1                          ; orden descendente
+    CALL MERGE_SORT                         ; ordena DW descendente
+    IMPRIMIR_CADENA MSG_DESC                ; etiqueta descendente
+    CALL MOSTRAR_VECTOR                     ; muestra resultado descendente
+    SALTO_LINEA                             ; nueva linea
 
-    IMPRIMIR_CADENA MSG_DESC                ; muestra etiqueta descendente
-    MOV SI, OFFSET VECTOR                   ; SI = inicio del vector
-    MOV CX, N_ELEM                          ; CX = cantidad de elementos
-    CALL MOSTRAR_VECTOR                     ; muestra el vector ordenado desc
+    ;--- Demostracion 8 bits (DB) ---
+    IMPRIMIR_CADENA MSG_8                   ; subtitulo 8 bits
+    SALTO_LINEA                             ; nueva linea
+    IMPRIMIR_CADENA MSG_ORIG                ; etiqueta original
+    MOV SI, OFFSET VECTOR_8                 ; SI = arreglo DB
+    MOV CX, N_8                             ; CX = cantidad
+    CALL MOSTRAR_VECTOR_8                   ; muestra original 8 bits
+    SALTO_LINEA                             ; nueva linea
+
+    MOV SENTIDO, 0                          ; orden ascendente
+    CALL MERGE_SORT_8                       ; ordena DB ascendente
+    IMPRIMIR_CADENA MSG_ASC                 ; etiqueta ascendente
+    CALL MOSTRAR_VECTOR_8                   ; muestra resultado ascendente
+    SALTO_LINEA                             ; nueva linea
+
+    MOV SENTIDO, 1                          ; orden descendente
+    CALL MERGE_SORT_8                       ; ordena DB descendente
+    IMPRIMIR_CADENA MSG_DESC                ; etiqueta descendente
+    CALL MOSTRAR_VECTOR_8                   ; muestra resultado descendente
     SALTO_LINEA                             ; nueva linea
 
     MOV AX, 4C00h                           ; servicio 4Ch: terminar programa
     INT 21h                                 ; vuelve a DOS con codigo 0
 
-;====== INICIO BLOQUE REUTILIZABLE: MERGE_SORT ======
+;====== INICIO BLOQUE REUTILIZABLE: MERGE_SORT (16 BITS / DW) ======
 ;------------------------------------------------------------------------------
 ; PROCEDIMIENTO MERGE_SORT
-;   Entrada : SI = offset del vector (DW), CX = cantidad de elementos
+;   Entrada : SI = offset del vector de 16 bits (DW), CX = cantidad
 ;             Variables en DATOS: SENTIDO, MS_AUX, MS_BASE, MS_LIM_I, MS_LIM_J
 ;   Salida  : vector ordenado en memoria
 ;   Modifica: nada (conserva AX, BX, CX, DX, SI, DI)
 ;------------------------------------------------------------------------------
-MERGE_SORT PROC                             ; inicio del procedimiento publico
+MERGE_SORT PROC                             ; inicio del procedimiento 16 bits
     PUSH AX                                 ; guarda AX (indice izq)
     PUSH BX                                 ; guarda BX (indice medio)
     PUSH CX                                 ; guarda CX (cantidad)
@@ -198,13 +223,9 @@ MS_FIN:                                     ; salida comun
     POP BX                                  ; restaura BX
     POP AX                                  ; restaura AX
     RET                                     ; vuelve al llamador
-MERGE_SORT ENDP                             ; fin del procedimiento publico
+MERGE_SORT ENDP                             ; fin del procedimiento 16 bits
 
-;------------------------------------------------------------------------------
-; PROCEDIMIENTO MS_DIVIDIR (interno, recursivo)
-;   Entrada : AX = izq, DX = der (indices logicos 0..N-1)
-;------------------------------------------------------------------------------
-MS_DIVIDIR PROC                             ; inicio de la recursion
+MS_DIVIDIR PROC                             ; recursion 16 bits
     CMP AX, DX                              ; subarreglo de 0 o 1 elemento?
     JAE MS_DIV_FIN                          ; si: caso base, retorna
 
@@ -237,12 +258,7 @@ MS_DIV_FIN:                                 ; fin de la llamada recursiva
     RET                                     ; vuelve al nivel anterior
 MS_DIVIDIR ENDP                             ; fin de MS_DIVIDIR
 
-;------------------------------------------------------------------------------
-; PROCEDIMIENTO MS_MEZCLAR (interno)
-;   Entrada : AX = izq, BX = medio, DX = der
-;   Mezcla las dos mitades ordenadas en MS_AUX y las copia al vector original.
-;------------------------------------------------------------------------------
-MS_MEZCLAR PROC                             ; inicio de la mezcla
+MS_MEZCLAR PROC                             ; mezcla 16 bits usando MS_AUX
     PUSH AX                                 ; guarda izq
     PUSH BX                                 ; guarda medio
     PUSH CX                                 ; guarda CX
@@ -346,14 +362,180 @@ MS_VUELTA_CICLO:                            ; copia palabra por palabra
     POP AX                                  ; restaura AX
     RET                                     ; vuelve a MS_DIVIDIR
 MS_MEZCLAR ENDP                             ; fin de MS_MEZCLAR
-;====== FIN BLOQUE REUTILIZABLE: MERGE_SORT ======
+;====== FIN BLOQUE REUTILIZABLE: MERGE_SORT (16 BITS / DW) ======
+
+;====== INICIO BLOQUE REUTILIZABLE: MERGE_SORT_8 (8 BITS / DB) ======
+;------------------------------------------------------------------------------
+; PROCEDIMIENTO MERGE_SORT_8
+;   Entrada : SI = offset del vector de 8 bits (DB), CX = cantidad
+;             Variables en DATOS: SENTIDO, MS_AUX_8, MS_BASE, MS_LIM_I, MS_LIM_J
+;   Salida  : vector ordenado en memoria
+;   Modifica: nada (conserva AX, BX, CX, DX, SI, DI)
+;------------------------------------------------------------------------------
+MERGE_SORT_8 PROC                           ; inicio del procedimiento 8 bits
+    PUSH AX                                 ; guarda AX (indice izq)
+    PUSH BX                                 ; guarda BX (indice medio)
+    PUSH CX                                 ; guarda CX (cantidad)
+    PUSH DX                                 ; guarda DX (indice der)
+    PUSH SI                                 ; guarda SI (offset vector)
+    PUSH DI                                 ; guarda DI
+
+    CMP CX, 1                               ; tiene 0 o 1 elemento?
+    JBE MS8_FIN                             ; si: ya esta ordenado, termina
+
+    MOV MS_BASE, SI                         ; guarda direccion base del vector
+    XOR AX, AX                              ; izq = 0
+    MOV DX, CX                              ; DX = N
+    DEC DX                                  ; der = N - 1
+    CALL MS8_DIVIDIR                        ; inicia division recursiva
+
+MS8_FIN:                                    ; salida comun
+    POP DI                                  ; restaura DI
+    POP SI                                  ; restaura SI
+    POP DX                                  ; restaura DX
+    POP CX                                  ; restaura CX
+    POP BX                                  ; restaura BX
+    POP AX                                  ; restaura AX
+    RET                                     ; vuelve al llamador
+MERGE_SORT_8 ENDP                           ; fin del procedimiento 8 bits
+
+MS8_DIVIDIR PROC                            ; recursion 8 bits
+    CMP AX, DX                              ; subarreglo de 0 o 1 elemento?
+    JAE MS8_DIV_FIN                         ; si: caso base, retorna
+
+    MOV BX, AX                              ; BX = izq
+    ADD BX, DX                              ; BX = izq + der
+    SHR BX, 1                               ; BX = medio = (izq + der) / 2
+
+    PUSH AX                                 ; guarda izq en la pila
+    PUSH BX                                 ; guarda medio en la pila
+    PUSH DX                                 ; guarda der en la pila
+    MOV DX, BX                              ; ordena mitad izq [izq..medio]
+    CALL MS8_DIVIDIR                        ; llamada recursiva izquierda
+    POP DX                                  ; recupera der
+    POP BX                                  ; recupera medio
+    POP AX                                  ; recupera izq
+
+    PUSH AX                                 ; guarda izq en la pila
+    PUSH BX                                 ; guarda medio en la pila
+    PUSH DX                                 ; guarda der en la pila
+    MOV AX, BX                              ; AX = medio
+    INC AX                                  ; AX = medio + 1
+    CALL MS8_DIVIDIR                        ; llamada recursiva derecha
+    POP DX                                  ; recupera der
+    POP BX                                  ; recupera medio
+    POP AX                                  ; recupera izq
+
+    CALL MS8_MEZCLAR                        ; mezcla ambas mitades en MS_AUX_8
+
+MS8_DIV_FIN:                                ; fin de la llamada recursiva
+    RET                                     ; vuelve al nivel anterior
+MS8_DIVIDIR ENDP                            ; fin de MS8_DIVIDIR
+
+MS8_MEZCLAR PROC                            ; mezcla 8 bits usando MS_AUX_8
+    PUSH AX                                 ; guarda izq
+    PUSH BX                                 ; guarda medio
+    PUSH CX                                 ; guarda CX
+    PUSH DX                                 ; guarda der
+    PUSH SI                                 ; guarda SI
+    PUSH DI                                 ; guarda DI
+
+    PUSH AX                                 ; conserva izq para copia final
+    PUSH DX                                 ; conserva der para copia final
+
+    MOV SI, AX                              ; SI = izq (1 byte por elemento)
+    ADD SI, MS_BASE                         ; SI apunta a v[izq]
+
+    MOV CX, BX                              ; CX = medio
+    ADD CX, MS_BASE                         ; CX apunta a v[medio]
+    MOV MS_LIM_I, CX                        ; guarda limite de mitad izq
+
+    MOV DI, CX                              ; DI = direccion de v[medio]
+    INC DI                                  ; DI apunta a v[medio+1] (1 byte)
+
+    MOV CX, DX                              ; CX = der
+    ADD CX, MS_BASE                         ; CX apunta a v[der]
+    MOV MS_LIM_J, CX                        ; guarda limite de mitad der
+
+    MOV BX, OFFSET MS_AUX_8                 ; BX apunta al inicio de MS_AUX_8
+
+MS8_MEZ_CICLO:                              ; compara cabezas de ambas mitades
+    CMP SI, MS_LIM_I                        ; se acabo la mitad izquierda?
+    JA MS8_COPIAR_DER                       ; si: copiar lo que queda de der
+    CMP DI, MS_LIM_J                        ; se acabo la mitad derecha?
+    JA MS8_COPIAR_IZQ                       ; si: copiar lo que queda de izq
+
+    MOV AL, [SI]                            ; AL = byte actual mitad izq
+    MOV CL, [DI]                            ; CL = byte actual mitad der
+    CMP SENTIDO, 0                          ; orden ascendente?
+    JNE MS8_MEZ_DESC                        ; no: comparar para descendente
+    CMP AL, CL                              ; ascendente: izq <= der?
+    JBE MS8_TOMAR_IZQ                       ; si: tomar de mitad izquierda
+    JMP MS8_TOMAR_DER                       ; no: tomar de mitad derecha
+
+MS8_MEZ_DESC:                               ; comparacion para descendente
+    CMP AL, CL                              ; descendente: izq >= der?
+    JAE MS8_TOMAR_IZQ                       ; si: tomar de mitad izquierda
+
+MS8_TOMAR_DER:                              ; copia byte de mitad derecha
+    MOV [BX], CL                            ; guarda en MS_AUX_8
+    INC DI                                  ; avanza puntero mitad derecha
+    INC BX                                  ; avanza puntero de MS_AUX_8
+    JMP MS8_MEZ_CICLO                       ; continua mezclando
+
+MS8_TOMAR_IZQ:                              ; copia byte de mitad izquierda
+    MOV [BX], AL                            ; guarda en MS_AUX_8
+    INC SI                                  ; avanza puntero mitad izquierda
+    INC BX                                  ; avanza puntero de MS_AUX_8
+    JMP MS8_MEZ_CICLO                       ; continua mezclando
+
+MS8_COPIAR_IZQ:                             ; copia sobrantes de mitad izq
+    CMP SI, MS_LIM_I                        ; quedan bytes en izq?
+    JA MS8_COPIAR_VUELTA                    ; no: pasar a copiar de vuelta
+    MOV AL, [SI]                            ; lee byte sobrante
+    MOV [BX], AL                            ; escribe en MS_AUX_8
+    INC SI                                  ; siguiente en mitad izquierda
+    INC BX                                  ; siguiente en MS_AUX_8
+    JMP MS8_COPIAR_IZQ                      ; repite hasta vaciar izq
+
+MS8_COPIAR_DER:                             ; copia sobrantes de mitad der
+    CMP DI, MS_LIM_J                        ; quedan bytes en der?
+    JA MS8_COPIAR_VUELTA                    ; no: pasar a copiar de vuelta
+    MOV AL, [DI]                            ; lee byte sobrante
+    MOV [BX], AL                            ; escribe en MS_AUX_8
+    INC DI                                  ; siguiente en mitad derecha
+    INC BX                                  ; siguiente en MS_AUX_8
+    JMP MS8_COPIAR_DER                      ; repite hasta vaciar der
+
+MS8_COPIAR_VUELTA:                          ; copia MS_AUX_8 -> v[izq..der]
+    POP DX                                  ; recupera der
+    POP AX                                  ; recupera izq
+    MOV CX, DX                              ; CX = der
+    SUB CX, AX                              ; CX = der - izq
+    INC CX                                  ; CX = cantidad = der - izq + 1
+    MOV DI, AX                              ; DI = izq (sin SHL, 1 byte)
+    ADD DI, MS_BASE                         ; DI apunta a v[izq]
+    MOV SI, OFFSET MS_AUX_8                 ; SI apunta al inicio de MS_AUX_8
+
+MS8_VUELTA_CICLO:                           ; copia byte por byte
+    MOV AL, [SI]                            ; lee desde MS_AUX_8
+    MOV [DI], AL                            ; escribe en el vector original
+    INC SI                                  ; siguiente byte en MS_AUX_8
+    INC DI                                  ; siguiente byte en vector
+    LOOP MS8_VUELTA_CICLO                   ; repite CX veces
+
+    POP DI                                  ; restaura DI
+    POP SI                                  ; restaura SI
+    POP DX                                  ; restaura DX
+    POP CX                                  ; restaura CX
+    POP BX                                  ; restaura BX
+    POP AX                                  ; restaura AX
+    RET                                     ; vuelve a MS8_DIVIDIR
+MS8_MEZCLAR ENDP                            ; fin de MS8_MEZCLAR
+;====== FIN BLOQUE REUTILIZABLE: MERGE_SORT_8 (8 BITS / DB) ======
 
 ;------------------------------------------------------------------------------
-; PROCEDIMIENTO MOSTRAR_VECTOR
-;   Entrada : SI = offset del vector de palabras (DW), CX = cantidad (>0)
-;   Salida  : muestra los elementos separados por un espacio.
-;   Requiere: macros IMPRIMIR_NUMERO e IMPRIMIR_ESPACIO.
-;   Modifica: nada (conserva AX, CX, SI).
+; PROCEDIMIENTO MOSTRAR_VECTOR (16 bits / DW)
 ;------------------------------------------------------------------------------
 MOSTRAR_VECTOR PROC                         ; inicio del procedimiento
     PUSH AX                                 ; guarda AX
@@ -361,8 +543,8 @@ MOSTRAR_VECTOR PROC                         ; inicio del procedimiento
     PUSH SI                                 ; guarda SI
     CMP CX, 0                               ; vector vacio?
     JE MV_FIN                               ; si: no hay nada que mostrar
-MV_CICLO:                                   ; recorre el vector
-    MOV AX, [SI]                            ; AX = elemento actual
+MV_CICLO:                                   ; recorre el vector DW
+    MOV AX, [SI]                            ; AX = elemento actual (16 bits)
     IMPRIMIR_NUMERO AX                      ; lo muestra
     IMPRIMIR_ESPACIO                        ; separador
     ADD SI, 2                               ; siguiente elemento (2 bytes)
@@ -373,6 +555,29 @@ MV_FIN:                                     ; salida comun
     POP AX                                  ; restaura AX
     RET                                     ; vuelve al llamador
 MOSTRAR_VECTOR ENDP                         ; fin del procedimiento
+
+;------------------------------------------------------------------------------
+; PROCEDIMIENTO MOSTRAR_VECTOR_8 (8 bits / DB)
+;------------------------------------------------------------------------------
+MOSTRAR_VECTOR_8 PROC                       ; inicio del procedimiento
+    PUSH AX                                 ; guarda AX
+    PUSH CX                                 ; guarda CX
+    PUSH SI                                 ; guarda SI
+    CMP CX, 0                               ; vector vacio?
+    JE MV8_FIN                              ; si: no hay nada que mostrar
+MV8_CICLO:                                  ; recorre el vector DB
+    MOV AL, [SI]                            ; AL = elemento actual (8 bits)
+    MOV AH, 0                               ; extiende sin signo a 16 bits
+    IMPRIMIR_NUMERO AX                      ; lo muestra
+    IMPRIMIR_ESPACIO                        ; separador
+    INC SI                                  ; siguiente elemento (1 byte)
+    LOOP MV8_CICLO                          ; repite CX veces
+MV8_FIN:                                    ; salida comun
+    POP SI                                  ; restaura SI
+    POP CX                                  ; restaura CX
+    POP AX                                  ; restaura AX
+    RET                                     ; vuelve al llamador
+MOSTRAR_VECTOR_8 ENDP                       ; fin del procedimiento
 
 CODIGO ENDS                                 ; fin del segmento de codigo
 END INICIO                                  ; fin del archivo, entrada INICIO

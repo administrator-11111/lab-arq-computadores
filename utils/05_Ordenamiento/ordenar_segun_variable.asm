@@ -1,39 +1,36 @@
 ;==============================================================================
 ; ARCHIVO       : ordenar_segun_variable.asm
 ; TIPO          : ALGORITMO (+ programa de demostracion)
-; DESCRIPCION   : Rutina de referencia ORDENAR_SEGUN_SENTIDO que ordena un
-;                 vector de palabras (DW) sin signo en orden ascendente o
-;                 descendente segun el valor de la variable SENTIDO en DATOS
-;                 (0 = ascendente, 1 = descendente), usando Bubble Sort con
-;                 bandera de parada anticipada como algoritmo base.
-; FUNCIONAMIENTO: En lugar de escribir dos procedimientos distintos (uno para
-;                 ascendente y otro para descendente), un unico procedimiento
-;                 consulta la variable SENTIDO DB en cada comparacion de pares
-;                 adyacentes:
+; DESCRIPCION   : Rutinas de referencia ORDENAR_SEGUN_SENTIDO (16 bits / DW) y
+;                 ORDENAR_SEGUN_SENTIDO_8 (8 bits / DB) que ordenan un arreglo
+;                 sin signo en orden ascendente o descendente segun la variable
+;                 SENTIDO en DATOS (0 = ascendente, 1 = descendente), usando
+;                 Bubble Sort con bandera de parada anticipada como base.
+; FUNCIONAMIENTO: En lugar de duplicar el algoritmo para ascendente y
+;                 descendente, cada rutina consulta SENTIDO DB en cada
+;                 comparacion de elementos adyacentes:
 ;                   - Si SENTIDO = 0: intercambia cuando v[j] > v[j+1].
 ;                   - Si SENTIDO = 1: intercambia cuando v[j] < v[j+1].
-;                 La demo muestra el vector original, pide al usuario elegir
-;                 el sentido por teclado (0 o 1), guarda la eleccion en
-;                 SENTIDO y llama a ORDENAR_SEGUN_SENTIDO.
-;
-;                 Traza de ejemplo (vector: 20, 5, 14, 5):
-;                   Usuario ingresa 0 -> SENTIDO = 0 -> resultado: 5 5 14 20
-;                   Usuario ingresa 1 -> SENTIDO = 1 -> resultado: 20 14 5 5
-; REGISTROS     : Entrada  : SI = offset del vector (DW), CX = cantidad
+;                 La demo muestra un vector de 16 bits (DW) y otro de 8 bits
+;                 (DB), pide elegir el sentido por teclado (0 o 1), guarda la
+;                 eleccion en SENTIDO y ordena ambos arreglos.
+; REGISTROS     : Entrada  : SI = offset del vector (DW o DB), CX = cantidad
 ;                 Salida   : vector ordenado en memoria (in-place)
 ;                 Modifica : ninguno (conserva AX, BX, CX, DX, SI, DI)
 ; VARIABLES     : SENTIDO DB 0  (0 = ascendente, 1 = descendente) en DATOS
-; DEPENDENCIAS  : Ninguna para ORDENAR_SEGUN_SENTIDO. La demo usa macros de
-;                 E/S de utils/01_Macros_Entrada_Salida/macros_entrada_salida.asm
-;                 y MOSTRAR_VECTOR de procedimientos canonicos.
+; DEPENDENCIAS  : Ninguna para las rutinas. La demo usa macros de E/S y
+;                 MOSTRAR_VECTOR / MOSTRAR_VECTOR_8.
 ; COMO INTEGRAR : 1. Declarar SENTIDO DB 0 en DATOS.
-;                 2. Copiar el bloque ORDENAR_SEGUN_SENTIDO en CODIGO despues
-;                    de la salida a DOS.
+;                 2. Copiar ORDENAR_SEGUN_SENTIDO (DW) o
+;                    ORDENAR_SEGUN_SENTIDO_8 (DB) en CODIGO despues de la
+;                    salida a DOS.
 ;                 3. Asignar 0 o 1 a SENTIDO, cargar SI = offset, CX = cantidad
-;                    y ejecutar CALL ORDENAR_SEGUN_SENTIDO.
-; EJEMPLO       : Vector original: 34 12 89 5 47 12 63 1
+;                    y llamar al procedimiento correspondiente.
+; EJEMPLO       : Vector 16b original: 3400 12 890 5 470 12 6300 1
+;                 Vector  8b original: 34 12 189 5 47 12 243 1
 ;                 Elija sentido (0 = ascendente, 1 = descendente): 1
-;                 Vector ordenado (descendente): 89 63 47 34 12 12 5 1
+;                 Vector 16b ordenado (desc): 6300 3400 890 470 12 12 5 1
+;                 Vector  8b ordenado (desc): 243 189 47 34 12 12 5 1
 ;==============================================================================
 
 ;//// macros
@@ -108,13 +105,18 @@ PILA SEGMENT STACK                          ; segmento de pila
 PILA ENDS                                   ; fin del segmento de pila
 
 DATOS SEGMENT                               ; segmento de datos
-    MSG_TITULO DB '=== DEMO: ORDENAR SEGUN VARIABLE SENTIDO ===$' ; titulo
-    MSG_ORIG   DB 'Vector original: $'      ; etiqueta vector original
+    MSG_TITULO DB '=== DEMO: ORDENAR SEGUN VARIABLE (16B Y 8B) ===$' ; tit
+    MSG_O16    DB 'Vector 16b original       : $' ; etiqueta original 16 bits
+    MSG_O8     DB 'Vector  8b original       : $' ; etiqueta original 8 bits
     MSG_PEDIR  DB 'Elija sentido (0 = ascendente, 1 = descendente): $' ; menu
-    MSG_ASC    DB 'Vector ordenado (ascendente) : $' ; etiqueta ascendente
-    MSG_DESC   DB 'Vector ordenado (descendente): $' ; etiqueta descendente
-    VECTOR     DW 34, 12, 89, 5, 47, 12, 63, 1 ; vector de prueba con repetido
-    N_ELEM     DW 8                         ; cantidad de elementos del vector
+    MSG_A16    DB 'Vector 16b ordenado (asc) : $' ; etiqueta 16b asc
+    MSG_D16    DB 'Vector 16b ordenado (desc): $' ; etiqueta 16b desc
+    MSG_A8     DB 'Vector  8b ordenado (asc) : $' ; etiqueta 8b asc
+    MSG_D8     DB 'Vector  8b ordenado (desc): $' ; etiqueta 8b desc
+    VECTOR_16  DW 3400, 12, 890, 5, 470, 12, 6300, 1 ; arreglo 16 bits (DW)
+    N_16       DW 8                         ; cantidad de elementos DW
+    VECTOR_8   DB 34, 12, 189, 5, 47, 12, 243, 1 ; arreglo 8 bits (DB)
+    N_8        DW 8                         ; cantidad de elementos DB
     SENTIDO    DB 0                         ; 0 = ascendente, 1 = descendente
 DATOS ENDS                                  ; fin del segmento de datos
 
@@ -127,10 +129,16 @@ INICIO:                                     ; punto de entrada del programa
     IMPRIMIR_CADENA MSG_TITULO              ; muestra el titulo
     SALTO_LINEA                             ; nueva linea
 
-    IMPRIMIR_CADENA MSG_ORIG                ; muestra etiqueta de original
-    MOV SI, OFFSET VECTOR                   ; SI = inicio del vector
-    MOV CX, N_ELEM                          ; CX = cantidad de elementos
-    CALL MOSTRAR_VECTOR                     ; muestra el vector original
+    IMPRIMIR_CADENA MSG_O16                 ; muestra original 16 bits
+    MOV SI, OFFSET VECTOR_16                ; SI = arreglo DW
+    MOV CX, N_16                            ; CX = cantidad
+    CALL MOSTRAR_VECTOR                     ; imprime vector 16 bits
+    SALTO_LINEA                             ; nueva linea
+
+    IMPRIMIR_CADENA MSG_O8                  ; muestra original 8 bits
+    MOV SI, OFFSET VECTOR_8                 ; SI = arreglo DB
+    MOV CX, N_8                             ; CX = cantidad
+    CALL MOSTRAR_VECTOR_8                   ; imprime vector 8 bits
     SALTO_LINEA                             ; nueva linea
 
     IMPRIMIR_CADENA MSG_PEDIR               ; solicita el sentido al usuario
@@ -146,36 +154,52 @@ OPCION_VALIDA:                              ; guarda la eleccion en SENTIDO
     MOV SENTIDO, AL                         ; configura la variable SENTIDO
     SALTO_LINEA                             ; nueva linea
 
-    MOV SI, OFFSET VECTOR                   ; SI = inicio del vector
-    MOV CX, N_ELEM                          ; CX = cantidad de elementos
-    CALL ORDENAR_SEGUN_SENTIDO              ; ordena segun el valor de SENTIDO
+    MOV SI, OFFSET VECTOR_16                ; ordena vector 16 bits
+    MOV CX, N_16                            ; CX = cantidad
+    CALL ORDENAR_SEGUN_SENTIDO              ; ordena DW segun SENTIDO
+
+    MOV SI, OFFSET VECTOR_8                 ; ordena vector 8 bits
+    MOV CX, N_8                             ; CX = cantidad
+    CALL ORDENAR_SEGUN_SENTIDO_8            ; ordena DB segun SENTIDO
 
     CMP SENTIDO, 0                          ; se ordeno ascendentemente?
-    JNE MOSTRAR_DESC                        ; no: mostrar etiqueta descendente
-    IMPRIMIR_CADENA MSG_ASC                 ; etiqueta ascendente
-    JMP MOSTRAR_RES                         ; salta a imprimir el vector
-MOSTRAR_DESC:                               ; etiqueta para modo descendente
-    IMPRIMIR_CADENA MSG_DESC                ; etiqueta descendente
-
-MOSTRAR_RES:                                ; muestra el resultado final
-    MOV SI, OFFSET VECTOR                   ; SI = inicio del vector
-    MOV CX, N_ELEM                          ; CX = cantidad de elementos
-    CALL MOSTRAR_VECTOR                     ; muestra el vector ordenado
+    JNE MOSTRAR_DESC                        ; no: mostrar etiquetas desc
+    IMPRIMIR_CADENA MSG_A16                 ; etiqueta 16b asc
+    MOV SI, OFFSET VECTOR_16                ; SI = arreglo DW
+    MOV CX, N_16                            ; CX = cantidad
+    CALL MOSTRAR_VECTOR                     ; muestra DW ordenado
     SALTO_LINEA                             ; nueva linea
+    IMPRIMIR_CADENA MSG_A8                  ; etiqueta 8b asc
+    MOV SI, OFFSET VECTOR_8                 ; SI = arreglo DB
+    MOV CX, N_8                             ; CX = cantidad
+    CALL MOSTRAR_VECTOR_8                   ; muestra DB ordenado
+    JMP FIN_DEMO                            ; salta al final
 
+MOSTRAR_DESC:                               ; muestra resultados descendentes
+    IMPRIMIR_CADENA MSG_D16                 ; etiqueta 16b desc
+    MOV SI, OFFSET VECTOR_16                ; SI = arreglo DW
+    MOV CX, N_16                            ; CX = cantidad
+    CALL MOSTRAR_VECTOR                     ; muestra DW ordenado
+    SALTO_LINEA                             ; nueva linea
+    IMPRIMIR_CADENA MSG_D8                  ; etiqueta 8b desc
+    MOV SI, OFFSET VECTOR_8                 ; SI = arreglo DB
+    MOV CX, N_8                             ; CX = cantidad
+    CALL MOSTRAR_VECTOR_8                   ; muestra DB ordenado
+
+FIN_DEMO:                                   ; cierre comun
+    SALTO_LINEA                             ; nueva linea
     MOV AX, 4C00h                           ; servicio 4Ch: terminar programa
     INT 21h                                 ; vuelve a DOS con codigo 0
 
-;====== INICIO BLOQUE REUTILIZABLE: ORDENAR_SEGUN_SENTIDO ======
+;====== INICIO BLOQUE REUTILIZABLE: ORDENAR_SEGUN_SENTIDO (16 BITS / DW) ======
 ;------------------------------------------------------------------------------
 ; PROCEDIMIENTO ORDENAR_SEGUN_SENTIDO
-;   Entrada : SI = offset del vector (DW), CX = cantidad de elementos
+;   Entrada : SI = offset del vector de 16 bits (DW), CX = cantidad
 ;             Variable global SENTIDO DB (0 = ascendente, 1 = descendente)
 ;   Salida  : vector ordenado en el mismo espacio de memoria
-;   Metodo  : Bubble Sort con bandera de intercambio temprano.
 ;   Modifica: nada (conserva AX, BX, CX, DX, SI, DI)
 ;------------------------------------------------------------------------------
-ORDENAR_SEGUN_SENTIDO PROC                  ; inicio del procedimiento
+ORDENAR_SEGUN_SENTIDO PROC                  ; inicio del procedimiento 16 bits
     PUSH AX                                 ; guarda AX (elemento actual)
     PUSH BX                                 ; guarda BX (BL = bandera swap)
     PUSH CX                                 ; guarda CX (contadores)
@@ -193,8 +217,8 @@ OSS_PASADA:                                 ; inicio de una pasada completa
     PUSH CX                                 ; guarda contador de pasadas
 
 OSS_COMPARAR:                               ; recorre pares adyacentes
-    MOV AX, [DI]                            ; AX = v[j]
-    MOV DX, [DI+2]                          ; DX = v[j+1]
+    MOV AX, [DI]                            ; AX = v[j] (16 bits)
+    MOV DX, [DI+2]                          ; DX = v[j+1] (2 bytes adelante)
     CMP SENTIDO, 0                          ; orden ascendente?
     JNE OSS_DESC                            ; no: verificar orden descendente
     CMP AX, DX                              ; ascendente: v[j] <= v[j+1]?
@@ -227,15 +251,74 @@ OSS_FIN:                                    ; salida comun del procedimiento
     POP BX                                  ; restaura BX
     POP AX                                  ; restaura AX
     RET                                     ; vuelve al llamador
-ORDENAR_SEGUN_SENTIDO ENDP                  ; fin del procedimiento
-;====== FIN BLOQUE REUTILIZABLE: ORDENAR_SEGUN_SENTIDO ======
+ORDENAR_SEGUN_SENTIDO ENDP                  ; fin del procedimiento 16 bits
+;====== FIN BLOQUE REUTILIZABLE: ORDENAR_SEGUN_SENTIDO (16 BITS / DW) ======
+
+;====== INICIO BLOQUE REUTILIZABLE: ORDENAR_SEGUN_SENTIDO_8 (8 BITS / DB) ======
+;------------------------------------------------------------------------------
+; PROCEDIMIENTO ORDENAR_SEGUN_SENTIDO_8
+;   Entrada : SI = offset del vector de 8 bits (DB), CX = cantidad
+;             Variable global SENTIDO DB (0 = ascendente, 1 = descendente)
+;   Salida  : vector ordenado en el mismo espacio de memoria
+;   Modifica: nada (conserva AX, BX, CX, DX, SI, DI)
+;------------------------------------------------------------------------------
+ORDENAR_SEGUN_SENTIDO_8 PROC                ; inicio del procedimiento 8 bits
+    PUSH AX                                 ; guarda AX (AL = byte actual)
+    PUSH BX                                 ; guarda BX (BL = bandera swap)
+    PUSH CX                                 ; guarda CX (contadores)
+    PUSH DX                                 ; guarda DX (DL = byte siguiente)
+    PUSH SI                                 ; guarda SI (inicio del vector)
+    PUSH DI                                 ; guarda DI (puntero interno)
+
+    CMP CX, 1                               ; tiene 0 o 1 elemento?
+    JBE OSS8_FIN                            ; si: ya esta ordenado, termina
+    DEC CX                                  ; CX = N - 1 pasadas maximas
+
+OSS8_PASADA:                                ; inicio de una pasada completa
+    XOR BL, BL                              ; BL = 0 (aun no hubo intercambio)
+    MOV DI, SI                              ; DI apunta al primer byte
+    PUSH CX                                 ; guarda contador de pasadas
+
+OSS8_COMPARAR:                              ; recorre pares de bytes adyacentes
+    MOV AL, [DI]                            ; AL = v[j] (8 bits)
+    MOV DL, [DI+1]                          ; DL = v[j+1] (1 byte adelante)
+    CMP SENTIDO, 0                          ; orden ascendente?
+    JNE OSS8_DESC                           ; no: verificar orden descendente
+    CMP AL, DL                              ; ascendente: v[j] <= v[j+1]?
+    JBE OSS8_SIGUIENTE                      ; si: ya estan en orden
+    JMP OSS8_INTERCAMBIAR                   ; no: intercambiar ambos bytes
+
+OSS8_DESC:                                  ; comparacion para orden descendente
+    CMP AL, DL                              ; descendente: v[j] >= v[j+1]?
+    JAE OSS8_SIGUIENTE                      ; si: ya estan en orden
+
+OSS8_INTERCAMBIAR:                          ; intercambia v[j] y v[j+1]
+    MOV [DI], DL                            ; guarda el segundo byte en v[j]
+    MOV [DI+1], AL                          ; guarda el primero en v[j+1]
+    MOV BL, 1                               ; marca que hubo al menos un swap
+
+OSS8_SIGUIENTE:                             ; avanza al siguiente par
+    INC DI                                  ; siguiente byte (1 byte)
+    LOOP OSS8_COMPARAR                      ; repite CX veces en esta pasada
+
+    POP CX                                  ; recupera contador de pasadas
+    CMP BL, 0                               ; hubo algun intercambio?
+    JE OSS8_FIN                             ; no: el vector ya esta ordenado
+    LOOP OSS8_PASADA                        ; siguiente pasada
+
+OSS8_FIN:                                   ; salida comun del procedimiento
+    POP DI                                  ; restaura DI
+    POP SI                                  ; restaura SI
+    POP DX                                  ; restaura DX
+    POP CX                                  ; restaura CX
+    POP BX                                  ; restaura BX
+    POP AX                                  ; restaura AX
+    RET                                     ; vuelve al llamador
+ORDENAR_SEGUN_SENTIDO_8 ENDP                ; fin del procedimiento 8 bits
+;====== FIN BLOQUE REUTILIZABLE: ORDENAR_SEGUN_SENTIDO_8 (8 BITS / DB) ======
 
 ;------------------------------------------------------------------------------
-; PROCEDIMIENTO MOSTRAR_VECTOR
-;   Entrada : SI = offset del vector de palabras (DW), CX = cantidad (>0)
-;   Salida  : muestra los elementos separados por un espacio.
-;   Requiere: macros IMPRIMIR_NUMERO e IMPRIMIR_ESPACIO.
-;   Modifica: nada (conserva AX, CX, SI).
+; PROCEDIMIENTO MOSTRAR_VECTOR (16 bits / DW)
 ;------------------------------------------------------------------------------
 MOSTRAR_VECTOR PROC                         ; inicio del procedimiento
     PUSH AX                                 ; guarda AX
@@ -243,8 +326,8 @@ MOSTRAR_VECTOR PROC                         ; inicio del procedimiento
     PUSH SI                                 ; guarda SI
     CMP CX, 0                               ; vector vacio?
     JE MV_FIN                               ; si: no hay nada que mostrar
-MV_CICLO:                                   ; recorre el vector
-    MOV AX, [SI]                            ; AX = elemento actual
+MV_CICLO:                                   ; recorre el vector DW
+    MOV AX, [SI]                            ; AX = elemento actual (16 bits)
     IMPRIMIR_NUMERO AX                      ; lo muestra
     IMPRIMIR_ESPACIO                        ; separador
     ADD SI, 2                               ; siguiente elemento (2 bytes)
@@ -255,6 +338,29 @@ MV_FIN:                                     ; salida comun
     POP AX                                  ; restaura AX
     RET                                     ; vuelve al llamador
 MOSTRAR_VECTOR ENDP                         ; fin del procedimiento
+
+;------------------------------------------------------------------------------
+; PROCEDIMIENTO MOSTRAR_VECTOR_8 (8 bits / DB)
+;------------------------------------------------------------------------------
+MOSTRAR_VECTOR_8 PROC                       ; inicio del procedimiento
+    PUSH AX                                 ; guarda AX
+    PUSH CX                                 ; guarda CX
+    PUSH SI                                 ; guarda SI
+    CMP CX, 0                               ; vector vacio?
+    JE MV8_FIN                              ; si: no hay nada que mostrar
+MV8_CICLO:                                  ; recorre el vector DB
+    MOV AL, [SI]                            ; AL = elemento actual (8 bits)
+    MOV AH, 0                               ; extiende sin signo a 16 bits
+    IMPRIMIR_NUMERO AX                      ; lo muestra
+    IMPRIMIR_ESPACIO                        ; separador
+    INC SI                                  ; siguiente elemento (1 byte)
+    LOOP MV8_CICLO                          ; repite CX veces
+MV8_FIN:                                    ; salida comun
+    POP SI                                  ; restaura SI
+    POP CX                                  ; restaura CX
+    POP AX                                  ; restaura AX
+    RET                                     ; vuelve al llamador
+MOSTRAR_VECTOR_8 ENDP                       ; fin del procedimiento
 
 CODIGO ENDS                                 ; fin del segmento de codigo
 END INICIO                                  ; fin del archivo, entrada INICIO
